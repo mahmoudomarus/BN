@@ -1,121 +1,132 @@
-import tweepy
 import requests
-import json
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+import json
 
 class InfluencerTracker:
-    """Tracks crypto influencers and their market impact"""
+    """Tracks crypto influencers and their market impact without using tweepy"""
     
-    INFLUENCERS = {
-        'elonmusk': {
-            'impact_score': 9.5,
-            'keywords': ['doge', 'crypto', 'bitcoin', 'btc'],
-            'platform': 'twitter'
-        },
-        'VitalikButerin': {
-            'impact_score': 8.5,
-            'keywords': ['ethereum', 'eth', 'layer2', 'scaling'],
-            'platform': 'twitter'
-        },
-        'cz_binance': {
-            'impact_score': 8.0,
-            'keywords': ['bnb', 'binance', 'listing', 'trading'],
-            'platform': 'twitter'
-        }
-    }
-
     def __init__(self):
         self.cache = {}
         self.cache_duration = 300  # 5 minutes
-
-    def get_recent_posts(self, influencer: str) -> List[Dict]:
-        """Get recent posts from an influencer (placeholder)"""
-        if influencer in self.cache:
-            cache_time, posts = self.cache[influencer]
-            if datetime.now() - cache_time < timedelta(seconds=self.cache_duration):
-                return posts
-
-        # Placeholder for actual API calls
-        return [{"text": f"Example post from {influencer}", "timestamp": datetime.now()}]
-
-    def analyze_impact(self, posts: List[Dict], coin: str) -> Dict:
-        """Analyze potential market impact of posts"""
-        impact_analysis = {
-            'impact_score': 0,
-            'relevant_posts': [],
-            'sentiment': 0
-        }
         
-        for post in posts:
-            # Placeholder for actual analysis
-            if coin.lower() in post['text'].lower():
-                impact_analysis['relevant_posts'].append(post)
-                impact_analysis['impact_score'] += 1
-                
-        return impact_analysis
-
-class WebContentAnalyzer:
-    """Analyzes web content for crypto-related information"""
-    
-    def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        # Define key influencers and their typical impact
+        self.INFLUENCERS = {
+            'elonmusk': {
+                'impact_score': 9.5,
+                'keywords': ['doge', 'crypto', 'bitcoin', 'btc'],
+                'platform': 'twitter'
+            },
+            'VitalikButerin': {
+                'impact_score': 8.5,
+                'keywords': ['ethereum', 'eth', 'layer2', 'scaling'],
+                'platform': 'twitter'
+            },
+            'cz_binance': {
+                'impact_score': 8.0,
+                'keywords': ['bnb', 'binance', 'listing', 'trading'],
+                'platform': 'twitter'
+            },
+            'saylor': {
+                'impact_score': 8.0,
+                'keywords': ['bitcoin', 'btc', 'crypto'],
+                'platform': 'twitter'
+            }
         }
 
-    def fetch_webpage(self, url: str) -> Optional[str]:
-        """Fetch and return webpage content"""
+    def get_social_metrics(self, coin_id: str) -> Dict:
+        """Get social metrics from CoinGecko"""
         try:
-            response = requests.get(url, headers=self.headers)
-            return response.text
+            url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
+            params = {
+                "localization": "false",
+                "tickers": "false",
+                "market_data": "false",
+                "community_data": "true",
+                "developer_data": "false"
+            }
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                community_data = data.get('community_data', {})
+                return {
+                    'twitter_followers': community_data.get('twitter_followers', 0),
+                    'reddit_subscribers': community_data.get('reddit_subscribers', 0),
+                    'telegram_channel_user_count': community_data.get('telegram_channel_user_count', 0),
+                    'reddit_active_accounts': community_data.get('reddit_average_posts_48h', 0)
+                }
         except Exception as e:
-            print(f"Error fetching webpage: {str(e)}")
-            return None
+            print(f"Error fetching social metrics: {str(e)}")
+        return self.get_default_metrics()
 
-    def analyze_webpage(self, content: str, keywords: List[str]) -> Dict:
-        """Analyze webpage content for relevant information"""
-        if not content:
-            return {}
-            
-        analysis = {
-            'keyword_matches': {},
-            'relevant_sections': []
+    def get_default_metrics(self) -> Dict:
+        """Return default metrics when data can't be fetched"""
+        return {
+            'twitter_followers': 0,
+            'reddit_subscribers': 0,
+            'telegram_channel_user_count': 0,
+            'reddit_active_accounts': 0
+        }
+
+    def analyze_social_sentiment(self, coin_id: str) -> Dict:
+        """Analyze social sentiment for a coin"""
+        metrics = self.get_social_metrics(coin_id)
+        
+        # Calculate engagement score (simplified)
+        total_followers = (
+            metrics['twitter_followers'] +
+            metrics['reddit_subscribers'] +
+            metrics['telegram_channel_user_count']
+        )
+        
+        # Basic sentiment analysis
+        sentiment = {
+            'overall_score': 0,
+            'community_strength': 'low',
+            'engagement_level': 'low',
+            'potential_signals': []
         }
         
-        for keyword in keywords:
-            count = content.lower().count(keyword.lower())
-            if count > 0:
-                analysis['keyword_matches'][keyword] = count
-                
-        return analysis
-
-class TextFileAnalyzer:
-    """Analyzes text files for crypto-related information"""
-    
-    def read_file(self, file_path: str) -> Optional[str]:
-        """Read and return file content"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()
-        except Exception as e:
-            print(f"Error reading file: {str(e)}")
-            return None
-
-    def analyze_content(self, content: str, keywords: List[str]) -> Dict:
-        """Analyze text content for relevant information"""
-        if not content:
-            return {}
+        # Analyze community size
+        if total_followers > 1000000:
+            sentiment['community_strength'] = 'very high'
+            sentiment['overall_score'] += 3
+        elif total_followers > 100000:
+            sentiment['community_strength'] = 'high'
+            sentiment['overall_score'] += 2
+        elif total_followers > 10000:
+            sentiment['community_strength'] = 'medium'
+            sentiment['overall_score'] += 1
             
-        analysis = {
-            'keyword_matches': {},
-            'sentiment': 0,
-            'key_phrases': []
+        # Analyze engagement
+        if metrics['reddit_active_accounts'] > 1000:
+            sentiment['engagement_level'] = 'very high'
+            sentiment['overall_score'] += 3
+            sentiment['potential_signals'].append("High community engagement detected")
+        elif metrics['reddit_active_accounts'] > 100:
+            sentiment['engagement_level'] = 'high'
+            sentiment['overall_score'] += 2
+            
+        return sentiment
+
+    def get_influencer_impact(self, coin_id: str) -> List[Dict]:
+        """Get potential influencer impact for a coin"""
+        impacts = []
+        for influencer, data in self.INFLUENCERS.items():
+            if any(keyword in coin_id.lower() for keyword in data['keywords']):
+                impacts.append({
+                    'influencer': influencer,
+                    'platform': data['platform'],
+                    'impact_score': data['impact_score'],
+                    'relevant_keywords': [k for k in data['keywords'] if k in coin_id.lower()]
+                })
+        return impacts
+
+    def get_overall_analysis(self, coin_id: str) -> Dict:
+        """Get comprehensive social analysis"""
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'metrics': self.get_social_metrics(coin_id),
+            'sentiment': self.analyze_social_sentiment(coin_id),
+            'influencer_impact': self.get_influencer_impact(coin_id)
         }
-        
-        # Simple keyword matching
-        for keyword in keywords:
-            count = content.lower().count(keyword.lower())
-            if count > 0:
-                analysis['keyword_matches'][keyword] = count
-                
-        return analysis
